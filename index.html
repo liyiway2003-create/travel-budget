@@ -19,11 +19,10 @@
             --blue: #185FA5; --red: #E24B4A; --green: #639922; --amber: #BA7517; --gray: #B4B2A9;
             --radius: 8px; --radius-lg: 12px;
         }
-
         [data-theme="dark"] {
             --bg: #1a1a18; --bg2: #252523;
             --text: #f0efec; --text2: #b0aea8; --text3: #777570;
-            --border: rgba(255, 255, 255, 0.1); --border2: rgba(255, 255, 255, 0.2);
+            --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
             --inp-bg: #2a2a27;
             --card: #2e2e2b; --card2: #252523;
             --ok-bg: #1a3310; --ok-txt: #7dc454;
@@ -31,34 +30,177 @@
             --warn-txt: #e8a040;
             --blue: #5b9fd6; --red: #f07070; --green: #7dc454; --amber: #e8a040; --gray: #777570;
         }
-
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 15px; min-height: 100vh; }
         .app { max-width: 480px; margin: 0 auto; padding: 1rem 1rem 4rem; }
-
-        /* auth screen */
-        .auth-screen { max-width: 380px; margin: 80px auto; padding: 2rem; background: var(--card); border-radius: var(--radius-lg); border: 0.5px solid var(--border); }
-        .auth-title { font-size: 20px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
-        .auth-sub { font-size: 13px; color: var(--text3); margin-bottom: 24px; line-height: 1.5; }
+        .auth-screen { max-width: 380px; margin: 80px auto; padding: 2rem; background: var(--card); border-radius: var(--radius-lg); border: 0.5px solid var(--border); text-align: center; }
         .auth-input { width: 100%; font-size: 16px; padding: 10px 12px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--inp-bg); color: var(--text); outline: none; margin-bottom: 10px; }
         .auth-btn { width: 100%; padding: 11px; border: none; border-radius: var(--radius); background: var(--blue); color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; }
-        .auth-btn:hover { opacity: 0.9; }
-        .auth-btn:disabled { opacity: 0.5; cursor: default; }
-        .auth-msg { font-size: 13px; color: var(--text3); margin-top: 10px; text-align: center; line-height: 1.5; }
-        .auth-msg.success { color: var(--ok-txt); }
-        .auth-msg.error { color: var(--over-txt); }
-
-        /* top bar */
         .top-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-        .trip-inp { font-size: 16px; font-weight: 500; border: none; background: transparent; color: var(--text); flex: 1; padding: 0; outline: none; min-width: 0; }
-        .icon-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 4px 9px; font-size: 13px; cursor: pointer; color: var(--text); flex-shrink: 0; white-space: nowrap; }
-        .icon-btn:hover { background: var(--bg2); }
-        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
-        .sync-dot.syncing { background: var(--amber); }
-        .sync-dot.offline { background: var(--gray); }
-
-        .sum3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin-bottom: 7px; }
-        .sum2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-bottom: 7px; }
+        .trip-inp { font-size: 16px; font-weight: 500; border: none; background: transparent; color: var(--text); flex: 1; padding: 0; outline: none; }
+        .icon-btn { background: none; border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 4px 9px; font-size: 13px; cursor: pointer; color: var(--text); }
+        .sum3, .sum2 { display: grid; gap: 7px; margin-bottom: 7px; }
+        .sum3 { grid-template-columns: repeat(3, 1fr); }
+        .sum2 { grid-template-columns: repeat(2, 1fr); }
         .metric { background: var(--bg2); border-radius: var(--radius); padding: 9px 10px; text-align: center; }
-        .mlabel { font-size: 11px; color: var(--text3); margin-bottom: 3px; }
-        .mval { font-size: 15px; font-weight: 500; color
+        .mlabel { font-size: 11px; color: var(--text3); }
+        .mval { font-size: 15px; font-weight: 500; }
+        .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .cal-cell { min-height: 52px; border-radius: var(--radius); border: 0.5px solid var(--border); background: var(--card); padding: 3px; cursor: pointer; text-align: center; }
+        .cal-cell.selected { border: 2px solid var(--blue); }
+        .panel { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 12px; }
+        .add-exp-btn { width: 100%; padding: 8px; border: 0.5px dashed var(--border2); background: none; color: var(--text3); cursor: pointer; margin-top: 10px; }
+        .danger { color: var(--over-txt); } .success { color: var(--ok-txt); }
+    </style>
+</head>
+<body>
+
+<div id="auth-screen" style="display:none;">
+    <div class="auth-screen">
+        <div style="font-size:28px;">✈️</div>
+        <h3>旅遊預算追蹤</h3>
+        <p style="font-size:13px; color:var(--text3); margin: 15px 0;">輸入 Email 寄送登入連結</p>
+        <input class="auth-input" type="email" id="auth-email" placeholder="your@email.com" />
+        <button class="auth-btn" id="auth-btn" onclick="sendMagicLink()">傳送登入連結</button>
+        <div id="auth-msg" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+</div>
+
+<div class="app" id="main-app" style="display:none;">
+    <div class="top-bar">
+        <span>✈️</span>
+        <input class="trip-inp" id="trip-name" oninput="S.tripName=this.value;scheduleSave()" />
+        <button class="icon-btn" onclick="toggleTheme()">🌓</button>
+        <button class="icon-btn" onclick="signOut()">登出</button>
+    </div>
+    <div id="sum-area"></div>
+    <div class="cal-header">
+        <button onclick="chMon(-1)">‹</button>
+        <div id="cal-title"></div>
+        <button onclick="chMon(1)">›</button>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div id="detail-area" style="margin-top:20px;"></div>
+    <div id="user-email-display" style="font-size:10px; color:var(--text3); text-align:center; margin-top:20px;"></div>
+</div>
+
+<script>
+    const SUPA_URL = 'https://bvoeqqmxgnqnmtvnieoz.supabase.co';
+    const SUPA_KEY = 'sb_publishable_kv4bqkPwDw_bbRUYcADDUw_zpkDx7RC';
+    const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+    const SITE_URL = "https://liyiway2003.github.io/travel-budget/";
+
+    let S = { tripName: '我的旅程', vy: 2026, vm: 5, sel: null, days: {}, theme: 'light', latestRates: { EUR_TWD: 37.15, EUR_USD: 1.17 } };
+    let currentUser = null;
+    let saveTimer = null;
+
+    function dk(y, m, d) { return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+    function fca(n) { return '€' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 2}); }
+
+    async function sendMagicLink() {
+        const email = document.getElementById('auth-email').value;
+        const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: SITE_URL } });
+        document.getElementById('auth-msg').textContent = error ? error.message : "連結已寄出，請檢查信箱";
+    }
+
+    async function signOut() { await sb.auth.signOut(); location.reload(); }
+
+    async function onSignedIn(user) {
+        currentUser = user;
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('main-app').style.display = 'block';
+        document.getElementById('user-email-display').textContent = user.email;
+        await loadData();
+        render();
+    }
+
+    async function loadData() {
+        const { data } = await sb.from('budget_data').select('data').eq('user_id', currentUser.id).single();
+        if (data) S = { ...S, ...data.data };
+        document.getElementById('trip-name').value = S.tripName;
+    }
+
+    async function saveToCloud() {
+        if (!currentUser) return;
+        await sb.from('budget_data').upsert({ user_id: currentUser.id, data: S, updated_at: new Date() });
+    }
+
+    function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(saveToCloud, 1000); }
+
+    function render() {
+        const title = document.getElementById('cal-title');
+        title.textContent = `${S.vy}年 ${S.vm + 1}月`;
+        
+        const grid = document.getElementById('cal-grid');
+        grid.innerHTML = '';
+        const dim = new Date(S.vy, S.vm + 1, 0).getDate();
+        for (let d = 1; d <= dim; d++) {
+            const k = dk(S.vy, S.vm, d);
+            const cell = document.createElement('div');
+            cell.className = `cal-cell ${S.sel === k ? 'selected' : ''}`;
+            cell.innerHTML = `<div style="font-size:12px">${d}</div>`;
+            if (S.days[k]) {
+                const spent = (S.days[k].expenses || []).reduce((sum, e) => sum + Number(e.amt || 0), 0);
+                if (spent > 0) cell.innerHTML += `<div style="font-size:9px;color:var(--blue)">€${spent}</div>`;
+            }
+            cell.onclick = () => { S.sel = k; render(); };
+            grid.appendChild(cell);
+        }
+        renderDetail();
+    }
+
+    function renderDetail() {
+        const area = document.getElementById('detail-area');
+        if (!S.sel) { area.innerHTML = '請選擇日期'; return; }
+        const k = S.sel;
+        if (!S.days[k]) S.days[k] = { budget: 100, expenses: [] };
+        const d = S.days[k];
+        
+        area.innerHTML = `
+            <div class="panel">
+                <h4>${k}</h4>
+                預算: <input type="number" value="${d.budget}" onchange="S.days['${k}'].budget=this.value;scheduleSave();render();" style="width:60px">
+                <div id="exp-list" style="margin-top:10px"></div>
+                <button class="add-exp-btn" onclick="addExp('${k}')">+ 新增支出</button>
+            </div>`;
+        
+        const list = document.getElementById('exp-list');
+        d.expenses.forEach((e, i) => {
+            const item = document.createElement('div');
+            item.style.marginBottom = '5px';
+            item.innerHTML = `
+                <input type="text" value="${e.desc}" placeholder="項目" onchange="S.days['${k}'].expenses[${i}].desc=this.value;scheduleSave();" style="width:100px">
+                <input type="number" value="${e.amt}" placeholder="金額" onchange="S.days['${k}'].expenses[${i}].amt=this.value;scheduleSave();render();" style="width:60px">
+                <button onclick="S.days['${k}'].expenses.splice(${i},1);scheduleSave();render();">×</button>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    function addExp(k) {
+        S.days[k].expenses.push({ desc: '', amt: 0 });
+        render();
+    }
+
+    function chMon(n) { S.vm += n; if (S.vm > 11) { S.vm = 0; S.vy++; } else if (S.vm < 0) { S.vm = 11; S.vy--; } render(); }
+
+    function toggleTheme() {
+        S.theme = S.theme === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', S.theme);
+        scheduleSave();
+    }
+
+    // 啟動檢查
+    (async function init() {
+        const { data: { session } } = await sb.auth.getSession();
+        if (session) onSignedIn(session.user);
+        else document.getElementById('auth-screen').style.display = 'block';
+        
+        sb.auth.onAuthStateChange((evt, session) => {
+            if (session && !currentUser) onSignedIn(session.user);
+        });
+    })();
+</script>
+</body>
+</html>
