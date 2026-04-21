@@ -226,7 +226,14 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 const SUPA_URL='https://bvoeqqmxgnqnmtvnieoz.supabase.co';
 const SUPA_KEY='sb_publishable_kv4bqkPwDw_bbRUYcADDUw_zpkDx7RC';
 const {createClient}=supabase;
-const sb=createClient(SUPA_URL,SUPA_KEY);
+const sb=createClient(SUPA_URL,SUPA_KEY,{
+  auth:{
+    flowType:'pkce',
+    autoRefreshToken:true,
+    detectSessionInUrl:true,
+    persistSession:true
+  }
+});
 
 const CHART_COLORS=['#1D9E75','#185FA5','#7F77DD','#D85A30','#D4537E','#BA7517','#639922','#888780','#E24B4A','#0F6E56'];
 const PAL=[{c:'#0F6E56',bg:'#E1F5EE'},{c:'#185FA5',bg:'#E6F1FB'},{c:'#534AB7',bg:'#EEEDFE'},{c:'#993C1D',bg:'#FAECE7'},{c:'#993556',bg:'#FBEAF0'},{c:'#854F0B',bg:'#FAEEDA'},{c:'#3B6D11',bg:'#EAF3DE'},{c:'#5F5E5A',bg:'#F1EFE8'}];
@@ -323,7 +330,8 @@ async function sendMagicLink(){
   const email=document.getElementById('auth-email').value.trim();
   if(!email){showAuthMsg('請輸入 Email','error');return;}
   const btn=document.getElementById('auth-btn');btn.disabled=true;btn.textContent='寄送中…';
-  const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.href}});
+  const redirectTo=window.location.origin+window.location.pathname;
+  const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo,shouldCreateUser:true}});
   if(error){showAuthMsg('寄送失敗：'+error.message,'error');btn.disabled=false;btn.textContent='傳送登入連結';}
   else{showAuthMsg('✉️ 登入連結已寄出！請查看你的 Email，點連結後回到此頁即可自動登入。','success');btn.textContent='已寄出';}
 }
@@ -361,7 +369,10 @@ async function onSignedIn(user){
   loadLocal();
   applyTheme();
   const loaded=await loadFromCloud();
-  if(!loaded&&Object.keys(S.days).length===0)prefillBudgets();
+  // Only prefill if truly no data anywhere
+  if(!loaded&&Object.keys(S.days).length===0){
+    prefillBudgets();
+  }
   render();
   fetchRates().then(()=>render());
 }
@@ -643,7 +654,17 @@ function importCSV(rows,colMap,replace){
 function render(){renderSummary();renderRateNote();renderCal();renderDetail();renderChart();renderCats();}
 
 // kick off
-initAuth();
+// Handle magic link redirect (especially mobile Safari)
+async function handleMagicLinkRedirect(){
+  // Supabase PKCE: exchangeCodeForSession handles the ?code= param
+  const params=new URLSearchParams(window.location.search);
+  const hash=window.location.hash;
+  if(params.get('code')||hash.includes('access_token')){
+    // Let supabase-js handle it automatically via detectSessionInUrl
+    await new Promise(r=>setTimeout(r,800));
+  }
+}
+handleMagicLinkRedirect().then(()=>initAuth());
 </script>
 </body>
 </html>
