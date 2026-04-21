@@ -323,7 +323,13 @@ async function sendMagicLink(){
   const email=document.getElementById('auth-email').value.trim();
   if(!email){showAuthMsg('請輸入 Email','error');return;}
   const btn=document.getElementById('auth-btn');btn.disabled=true;btn.textContent='寄送中…';
-  const{error}=await sb.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.href}});
+  const currentUrl = "https://liyiway2003.github.io/travel-budget/";
+const { error } = await sb.auth.signInWithOtp({
+  email,
+  options: {
+    emailRedirectTo: currentUrl
+  }
+});
   if(error){showAuthMsg('寄送失敗：'+error.message,'error');btn.disabled=false;btn.textContent='傳送登入連結';}
   else{showAuthMsg('✉️ 登入連結已寄出！請查看你的 Email，點連結後回到此頁即可自動登入。','success');btn.textContent='已寄出';}
 }
