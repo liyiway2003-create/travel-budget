@@ -241,6 +241,7 @@ const CATS0=[{id:'c1',name:'🍜 餐飲',c:'#0F6E56',bg:'#E1F5EE'},{id:'c2',name
 const DEF_RATES={EUR_TWD:37.15,USD_TWD:31.64,EUR_USD:1.174};
 
 let S={tripName:'歐洲之旅',vy:2026,vm:4,sel:null,cats:[],days:{},latestRates:{...DEF_RATES},ratesFetchedAt:null,theme:'light'};
+// vm:4 = May (0-indexed)
 let editCatId=null,ctxMenu=null,pieChart=null,swipedInner=null;
 let currentUser=null,saveTimer=null,lastSyncTime=null;
 
@@ -277,11 +278,12 @@ async function loadFromCloud(){
     if(error&&error.code!=='PGRST116')throw error;
     if(data&&data.data){
       const remote=data.data;
+      console.log('Loaded from cloud, days count:', Object.keys(remote.days||{}).length);
       S={...S,...remote};
       if(!S.latestRates)S.latestRates={...DEF_RATES};
       if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
       if(!S.theme)S.theme='light';
-      localStorage.setItem('tb_v12_local',JSON.stringify(S));
+      localStorage.setItem('tb_v14_local',JSON.stringify(S));
       return true;
     }
   }catch(e){console.warn('cloud load failed',e);}
@@ -292,14 +294,26 @@ async function saveToCloud(){
   if(!currentUser)return;
   setSyncDot('syncing');
   try{
-    const{error}=await sb.from('budget_data').upsert({user_id:currentUser.id,data:S,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+    // Check if row exists first
+    const{data:existing}=await sb.from('budget_data').select('id').eq('user_id',currentUser.id).single();
+    let error;
+    if(existing){
+      // Update existing row
+      const res=await sb.from('budget_data').update({data:S,updated_at:new Date().toISOString()}).eq('user_id',currentUser.id);
+      error=res.error;
+    }else{
+      // Insert new row
+      const res=await sb.from('budget_data').insert({user_id:currentUser.id,data:S,updated_at:new Date().toISOString()});
+      error=res.error;
+    }
     if(error)throw error;
-    localStorage.setItem('tb_v12_local',JSON.stringify(S));
+    localStorage.setItem('tb_v14_local',JSON.stringify(S));
     setSyncDot('ok');
     lastSyncTime=Date.now();
+    console.log('Cloud save OK');
   }catch(e){
     console.warn('cloud save failed',e);
-    localStorage.setItem('tb_v12_local',JSON.stringify(S));
+    localStorage.setItem('tb_v14_local',JSON.stringify(S));
     setSyncDot('offline');
   }
 }
@@ -319,7 +333,7 @@ function prefillBudgets(){
 
 function loadLocal(){
   try{
-    const s=localStorage.getItem('tb_v12_local');
+    const s=localStorage.getItem('tb_v14_local');
     if(s){S=JSON.parse(s);if(!S.latestRates)S.latestRates={...DEF_RATES};if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));if(!S.theme)S.theme='light';}
     else{S.cats=JSON.parse(JSON.stringify(CATS0));S.days={};prefillBudgets();}
   }catch(e){S.cats=JSON.parse(JSON.stringify(CATS0));S.days={};prefillBudgets();}
@@ -362,6 +376,7 @@ async function initAuth(){
 
 async function onSignedIn(user){
   currentUser=user;
+  console.log('Signed in as:', user.email);
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('main-app').style.display='';
   const emailEl=document.getElementById('user-email-display');
@@ -381,12 +396,17 @@ async function fetchRates(){
   const now=Date.now();
   if(S.ratesFetchedAt&&now-S.ratesFetchedAt<3600000)return;
   try{
-    const r=await fetch('https://api.frankfurter.app/latest?from=EUR&to=TWD,USD');
+    // Use open.er-api.com which allows CORS from browsers
+    const r=await fetch('https://open.er-api.com/v6/latest/EUR');
     if(!r.ok)throw 0;
     const data=await r.json();
-    S.latestRates={EUR_TWD:data.rates.TWD,EUR_USD:data.rates.USD,USD_TWD:data.rates.TWD/data.rates.USD};
+    if(data.result!=='success')throw 0;
+    const TWD=data.rates.TWD,USD=data.rates.USD;
+    S.latestRates={EUR_TWD:TWD,EUR_USD:USD,USD_TWD:TWD/USD};
     S.ratesFetchedAt=now;scheduleSave();renderRateNote();
-  }catch(e){}
+  }catch(e){
+    console.log('Rate fetch failed, using cached rates');
+  }
 }
 
 function lockRatesIfNeeded(k){
