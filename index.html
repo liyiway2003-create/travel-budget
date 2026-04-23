@@ -7,8 +7,30 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="旅遊預算">
-<link rel="apple-touch-icon" href="icon.png">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌠</text></svg>">
+<link rel="icon" id="favicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌠</text></svg>">
+<link rel="apple-touch-icon" id="apple-icon" href="">
+<script>
+// Generate emoji icon using canvas so it uses the device's own emoji font
+(function(){
+  try{
+    const c=document.createElement('canvas');c.width=512;c.height=512;
+    const ctx=c.getContext('2d');
+    // Background
+    ctx.fillStyle='#0f0a2e';
+    const r=80;
+    ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(512-r,0);
+    ctx.quadraticCurveTo(512,0,512,r);ctx.lineTo(512,512-r);
+    ctx.quadraticCurveTo(512,512,512-r,512);ctx.lineTo(r,512);
+    ctx.quadraticCurveTo(0,512,0,512-r);ctx.lineTo(0,r);
+    ctx.quadraticCurveTo(0,0,r,0);ctx.closePath();ctx.fill();
+    // Emoji
+    ctx.font='400px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('🌠',256,280);
+    const png=c.toDataURL('image/png');
+    document.getElementById('apple-icon').href=png;
+  }catch(e){}
+})();
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -364,17 +386,61 @@ async function signOut(){
 }
 
 async function initAuth(){
-  // check session
+  // For iOS PWA standalone mode: try to restore session from localStorage
+  // Supabase stores session under 'sb-<project>-auth-token' automatically
+  // but iOS PWA has isolated storage - we bridge it manually
+  const SESSION_KEY='tb_session_v1';
+
+  // Check if we have a stored session token
+  try{
+    const stored=localStorage.getItem(SESSION_KEY);
+    if(stored){
+      const parsed=JSON.parse(stored);
+      if(parsed&&parsed.access_token&&parsed.refresh_token){
+        // Try to restore session
+        const{data,error}=await sb.auth.setSession({
+          access_token:parsed.access_token,
+          refresh_token:parsed.refresh_token
+        });
+        if(!error&&data.session){
+          console.log('Session restored from storage');
+          // Save updated tokens
+          localStorage.setItem(SESSION_KEY,JSON.stringify({
+            access_token:data.session.access_token,
+            refresh_token:data.session.refresh_token
+          }));
+          await onSignedIn(data.session.user);
+          return;
+        }
+      }
+    }
+  }catch(e){console.warn('Session restore failed',e);}
+
+  // check session normally
   const{data:{session}}=await sb.auth.getSession();
   if(session){
+    // Save session tokens for PWA
+    localStorage.setItem(SESSION_KEY,JSON.stringify({
+      access_token:session.access_token,
+      refresh_token:session.refresh_token
+    }));
     await onSignedIn(session.user);
   }else{
     document.getElementById('auth-screen').style.display='';
   }
+
   // listen for auth changes (handles magic link redirect)
   sb.auth.onAuthStateChange(async(event,session)=>{
     if(session&&!currentUser){
+      // Save session for PWA
+      localStorage.setItem(SESSION_KEY,JSON.stringify({
+        access_token:session.access_token,
+        refresh_token:session.refresh_token
+      }));
       await onSignedIn(session.user);
+    }
+    if(event==='SIGNED_OUT'){
+      localStorage.removeItem(SESSION_KEY);
     }
   });
 }
