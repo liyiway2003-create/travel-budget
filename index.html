@@ -187,16 +187,16 @@ input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-
 <!-- Auth screen -->
 <div id="auth-screen" style="display:none;">
   <div class="auth-screen">
-    <div style="font-size:28px;margin-bottom:12px;">🌠</div>
+    <div style="font-size:48px;margin-bottom:12px;text-align:center;">🌠</div>
     <div class="auth-title">旅遊預算追蹤</div>
-    <div class="auth-sub" id="auth-sub">輸入 Email 和密碼登入。第一次使用請先註冊。</div>
-    <input class="auth-input" type="email" id="auth-email" placeholder="your@email.com" />
-    <input class="auth-input" type="password" id="auth-password" placeholder="密碼（至少 6 個字元）" onkeydown="if(event.key==='Enter')doLogin()" />
-    <div style="display:flex;gap:8px;margin-bottom:10px;">
-      <button class="auth-btn" id="auth-btn-login" onclick="doLogin()" style="flex:1;">登入</button>
-      <button class="auth-btn" id="auth-btn-signup" onclick="doSignup()" style="flex:1;background:#444;">註冊</button>
-    </div>
+    <div class="auth-sub" id="auth-sub">設定一組密碼，任何裝置都能用同一組密碼登入同步資料。</div>
+    <input class="auth-input" type="password" id="auth-password" placeholder="輸入密碼（至少 6 個字元）"
+      onkeydown="if(event.key==='Enter')doAuth()" autocomplete="current-password" />
+    <button class="auth-btn" id="auth-btn" onclick="doAuth()">進入</button>
     <div class="auth-msg" id="auth-msg"></div>
+    <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:16px;line-height:1.6;">
+      第一次使用會自動建立帳號<br>之後用相同密碼即可登入
+    </div>
   </div>
 </div>
 
@@ -371,26 +371,49 @@ function loadLocal(){
 }
 
 // ── Auth ──
-async function doLogin(){
-  const email=document.getElementById('auth-email').value.trim();
-  const password=document.getElementById('auth-password').value;
-  if(!email||!password){showAuthMsg('請輸入 Email 和密碼','error');return;}
-  const btn=document.getElementById('auth-btn-login');btn.disabled=true;btn.textContent='登入中…';
-  const{data,error}=await sb.auth.signInWithPassword({email,password});
-  if(error){showAuthMsg('登入失敗：'+error.message,'error');btn.disabled=false;btn.textContent='登入';}
-  else{saveSessionLocal(data.session);await onSignedIn(data.user);}
+// Fixed email derived from password hash - no email input needed
+function getFixedEmail(password){
+  // Create a stable email from a hash of the password
+  let hash=0;
+  for(let i=0;i<password.length;i++){hash=((hash<<5)-hash)+password.charCodeAt(i);hash|=0;}
+  const pos=Math.abs(hash).toString(36).slice(0,12).padStart(12,'x');
+  return `tb_${pos}@travel-budget.app`;
 }
 
-async function doSignup(){
-  const email=document.getElementById('auth-email').value.trim();
+async function doAuth(){
   const password=document.getElementById('auth-password').value;
-  if(!email||!password){showAuthMsg('請輸入 Email 和密碼','error');return;}
-  if(password.length<6){showAuthMsg('密碼至少需要 6 個字元','error');return;}
-  const btn=document.getElementById('auth-btn-signup');btn.disabled=true;btn.textContent='註冊中…';
-  const{data,error}=await sb.auth.signUp({email,password});
-  if(error){showAuthMsg('註冊失敗：'+error.message,'error');btn.disabled=false;btn.textContent='註冊';}
-  else if(data.user&&data.session){saveSessionLocal(data.session);await onSignedIn(data.user);}
-  else{showAuthMsg('✉️ 請到 Email 確認帳號後再登入！','success');btn.disabled=false;btn.textContent='註冊';}
+  if(!password||password.length<6){showAuthMsg('密碼至少需要 6 個字元','error');return;}
+  const btn=document.getElementById('auth-btn');
+  btn.disabled=true;btn.textContent='進入中…';
+  const email=getFixedEmail(password);
+
+  // Try login first
+  const{data:loginData,error:loginErr}=await sb.auth.signInWithPassword({email,password});
+  if(!loginErr&&loginData.session){
+    saveSessionLocal(loginData.session);
+    await onSignedIn(loginData.user);
+    return;
+  }
+
+  // Login failed - try signup
+  const{data:signupData,error:signupErr}=await sb.auth.signUp({
+    email,password,
+    options:{data:{app:'travel-budget'}}
+  });
+  if(!signupErr&&signupData.session){
+    saveSessionLocal(signupData.session);
+    await onSignedIn(signupData.user);
+    return;
+  }
+  if(!signupErr&&signupData.user&&!signupData.session){
+    // Email confirmation required - disable it in Supabase dashboard
+    showAuthMsg('請到 Supabase → Authentication → Email 關閉「Confirm email」設定後再試','error');
+    btn.disabled=false;btn.textContent='進入';
+    return;
+  }
+
+  showAuthMsg('錯誤：'+(signupErr?.message||loginErr?.message||'請稍後再試'),'error');
+  btn.disabled=false;btn.textContent='進入';
 }
 
 function saveSessionLocal(session){
@@ -457,6 +480,24 @@ async function initAuth(){
   });
 }
 
+// Keep-alive ping: runs every 4 days to prevent Supabase pausing
+function startKeepAlive(){
+  const PING_KEY='tb_last_ping';
+  const INTERVAL=4*24*60*60*1000; // 4 days
+  async function ping(){
+    if(!currentUser)return;
+    const last=parseInt(localStorage.getItem(PING_KEY)||'0');
+    if(Date.now()-last<INTERVAL)return;
+    try{
+      await sb.from('budget_data').select('updated_at').eq('user_id',currentUser.id).single();
+      localStorage.setItem(PING_KEY,Date.now().toString());
+      console.log('Keep-alive ping sent');
+    }catch(e){}
+  }
+  ping();
+  setInterval(ping,6*60*60*1000); // check every 6 hours
+}
+
 async function onSignedIn(user){
   currentUser=user;
   console.log('Signed in as:', user.email);
@@ -473,6 +514,7 @@ async function onSignedIn(user){
   }
   render();
   fetchRates().then(()=>render());
+  startKeepAlive();
 }
 
 async function fetchRates(){
