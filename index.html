@@ -309,13 +309,25 @@ async function loadFromCloud(){
     if(error&&error.code!=='PGRST116')throw error;
     if(data&&data.data){
       const remote=data.data;
-      console.log('Loaded from cloud, days count:', Object.keys(remote.days||{}).length);
-      S={...S,...remote};
-      if(!S.latestRates)S.latestRates={...DEF_RATES};
-      if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
-      if(!S.theme)S.theme='light';
-      localStorage.setItem('tb_v14_local',JSON.stringify(S));
-      return true;
+      const remoteTime=remote.lastModified||0;
+      const localTime=S.lastModified||0;
+      console.log('Cloud lastModified:', remoteTime, 'Local lastModified:', localTime);
+      if(remoteTime>=localTime){
+        // Remote is newer or same - use remote
+        console.log('Using cloud data, days count:', Object.keys(remote.days||{}).length);
+        S={...S,...remote};
+        if(!S.latestRates)S.latestRates={...DEF_RATES};
+        if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
+        if(!S.theme)S.theme='light';
+        localStorage.setItem('tb_v14_local',JSON.stringify(S));
+        return true;
+      } else {
+        // Local is newer - keep local, push to cloud
+        console.log('Local data is newer, keeping local and pushing to cloud');
+        localStorage.setItem('tb_v14_local',JSON.stringify(S));
+        setTimeout(()=>saveToCloud(),2000);
+        return false;
+      }
     }
   }catch(e){console.warn('cloud load failed',e);}
   return false;
@@ -327,6 +339,8 @@ async function saveToCloud(){
   try{
     // Check if row exists first
     const{data:existing}=await sb.from('budget_data').select('id').eq('user_id',currentUser.id).single();
+    // Ensure lastModified is set before saving
+    if(!S.lastModified)S.lastModified=Date.now();
     let error;
     if(existing){
       // Update existing row
@@ -350,6 +364,7 @@ async function saveToCloud(){
 }
 
 function scheduleSave(){
+  S.lastModified=Date.now(); // stamp every local change
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>saveToCloud(),1500);
 }
@@ -797,6 +812,23 @@ function importCSV(rows,colMap,replace){
 }
 
 function render(){renderSummary();renderRateNote();renderCal();renderDetail();renderChart();renderCats();}
+
+// Re-sync when tab becomes visible (e.g. switching back to Chrome tab)
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&currentUser){
+    const{data}=await sb.from('budget_data').select('data').eq('user_id',currentUser.id).single();
+    if(data&&data.data){
+      const remoteTime=data.data.lastModified||0;
+      const localTime=S.lastModified||0;
+      if(remoteTime>localTime){
+        console.log('Tab refocused: remote newer, reloading');
+        S={...S,...data.data};
+        localStorage.setItem('tb_v14_local',JSON.stringify(S));
+        render();
+      }
+    }
+  }
+});
 
 // kick off
 // Handle magic link redirect (especially mobile Safari)
