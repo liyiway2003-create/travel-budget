@@ -309,25 +309,16 @@ async function loadFromCloud(){
     if(error&&error.code!=='PGRST116')throw error;
     if(data&&data.data){
       const remote=data.data;
-      const remoteTime=remote.lastModified||0;
-      const localTime=S.lastModified||0;
-      console.log('Cloud lastModified:', remoteTime, 'Local lastModified:', localTime);
-      if(remoteTime>=localTime){
-        // Remote is newer or same - use remote
-        console.log('Using cloud data, days count:', Object.keys(remote.days||{}).length);
-        S={...S,...remote};
-        if(!S.latestRates)S.latestRates={...DEF_RATES};
-        if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
-        if(!S.theme)S.theme='light';
-        localStorage.setItem('tb_v14_local',JSON.stringify(S));
-        return true;
-      } else {
-        // Local is newer - keep local, push to cloud
-        console.log('Local data is newer, keeping local and pushing to cloud');
-        localStorage.setItem('tb_v14_local',JSON.stringify(S));
-        setTimeout(()=>saveToCloud(),2000);
-        return false;
-      }
+      // Cloud is always source of truth on load
+      console.log('Loaded from cloud, days:', Object.keys(remote.days||{}).length, 'lastModified:', remote.lastModified);
+      // Preserve theme preference from local if remote doesn't have it
+      const localTheme=S.theme;
+      S={...remote};
+      if(!S.latestRates)S.latestRates={...DEF_RATES};
+      if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
+      if(!S.theme)S.theme=localTheme||'light';
+      localStorage.setItem('tb_v14_local',JSON.stringify(S));
+      return true;
     }
   }catch(e){console.warn('cloud load failed',e);}
   return false;
@@ -366,7 +357,7 @@ async function saveToCloud(){
 function scheduleSave(){
   S.lastModified=Date.now(); // stamp every local change
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>saveToCloud(),1500);
+  saveTimer=setTimeout(()=>saveToCloud(),800);
 }
 
 function prefillBudgets(){
@@ -522,10 +513,15 @@ async function onSignedIn(user){
   if(emailEl)emailEl.textContent='登入中：'+user.email;
   loadLocal();
   applyTheme();
+  // Always load from cloud first - cloud is source of truth
   const loaded=await loadFromCloud();
-  // Only prefill if truly no data anywhere
-  if(!loaded&&Object.keys(S.days).length===0){
-    prefillBudgets();
+  if(!loaded){
+    // Cloud failed or empty - use local or prefill
+    if(Object.keys(S.days).length===0){
+      prefillBudgets();
+      S.lastModified=Date.now();
+      saveToCloud(); // push initial data to cloud
+    }
   }
   render();
   fetchRates().then(()=>render());
@@ -816,17 +812,24 @@ function render(){renderSummary();renderRateNote();renderCal();renderDetail();re
 // Re-sync when tab becomes visible (e.g. switching back to Chrome tab)
 document.addEventListener('visibilitychange',async()=>{
   if(document.visibilityState==='visible'&&currentUser){
-    const{data}=await sb.from('budget_data').select('data').eq('user_id',currentUser.id).single();
-    if(data&&data.data){
-      const remoteTime=data.data.lastModified||0;
-      const localTime=S.lastModified||0;
-      if(remoteTime>localTime){
-        console.log('Tab refocused: remote newer, reloading');
-        S={...S,...data.data};
-        localStorage.setItem('tb_v14_local',JSON.stringify(S));
-        render();
+    try{
+      const{data}=await sb.from('budget_data').select('data').eq('user_id',currentUser.id).single();
+      if(data&&data.data){
+        const remoteTime=data.data.lastModified||0;
+        const localTime=S.lastModified||0;
+        console.log('Tab visible - remote:', remoteTime, 'local:', localTime);
+        if(remoteTime>localTime){
+          console.log('Remote is newer, updating UI');
+          const localTheme=S.theme;
+          S={...data.data};
+          if(!S.latestRates)S.latestRates={...DEF_RATES};
+          if(!S.cats||!S.cats.length)S.cats=JSON.parse(JSON.stringify(CATS0));
+          if(!S.theme)S.theme=localTheme||'light';
+          localStorage.setItem('tb_v14_local',JSON.stringify(S));
+          render();
+        }
       }
-    }
+    }catch(e){console.warn('Visibility sync failed',e);}
   }
 });
 
