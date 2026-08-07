@@ -269,7 +269,7 @@ const sb=createClient(SUPA_URL,SUPA_KEY,{
 const CHART_COLORS=['#1D9E75','#185FA5','#7F77DD','#D85A30','#D4537E','#BA7517','#639922','#888780','#E24B4A','#0F6E56'];
 const PAL=[{c:'#0F6E56',bg:'#E1F5EE'},{c:'#185FA5',bg:'#E6F1FB'},{c:'#534AB7',bg:'#EEEDFE'},{c:'#993C1D',bg:'#FAECE7'},{c:'#993556',bg:'#FBEAF0'},{c:'#854F0B',bg:'#FAEEDA'},{c:'#3B6D11',bg:'#EAF3DE'},{c:'#5F5E5A',bg:'#F1EFE8'}];
 const CATS0=[{id:'c1',name:'🍜 餐飲',c:'#0F6E56',bg:'#E1F5EE'},{id:'c2',name:'🚇 交通',c:'#185FA5',bg:'#E6F1FB'},{id:'c3',name:'🏨 住宿',c:'#534AB7',bg:'#EEEDFE'},{id:'c4',name:'🎫 門票',c:'#993C1D',bg:'#FAECE7'},{id:'c5',name:'🛍️ 購物',c:'#993556',bg:'#FBEAF0'},{id:'c6',name:'📦 其他',c:'#5F5E5A',bg:'#F1EFE8'}];
-const DEF_RATES={EUR_TWD:37.15,USD_TWD:31.64,EUR_USD:1.174,EUR_GBP:0.856};
+const DEF_RATES={EUR_TWD:37.15,USD_TWD:31.64,EUR_USD:1.174,EUR_GBP:0.856,EUR_PLN:4.28,EUR_CZK:25.2};
 
 let S={tripName:'歐洲之旅',vy:2026,vm:4,sel:null,cats:[],days:{},latestRates:{...DEF_RATES},ratesFetchedAt:null,theme:'light'};
 // vm:4 = May (0-indexed)
@@ -291,6 +291,8 @@ function toEUR(amt,cur,rates){
   if(cur==='USD')return a/(r.EUR_USD||1.174);
   if(cur==='NTD')return a/(r.EUR_TWD||37.15);
   if(cur==='GBP')return a/(r.EUR_GBP||0.856);
+  if(cur==='PLN')return a/(r.EUR_PLN||4.28);
+  if(cur==='CZK')return a/(r.EUR_CZK||25.2);
   return a;
 }
 function daySpent(d){if(!d)return 0;const rates=d.rates||S.latestRates;return(d.expenses||[]).reduce((a,e)=>a+toEUR(e.amt,e.cur,rates),0);}
@@ -538,8 +540,8 @@ async function fetchRates(){
     if(!r.ok)throw 0;
     const data=await r.json();
     if(data.result!=='success')throw 0;
-    const TWD=data.rates.TWD,USD=data.rates.USD,GBP=data.rates.GBP;
-    S.latestRates={EUR_TWD:TWD,EUR_USD:USD,USD_TWD:TWD/USD,EUR_GBP:GBP};
+    const TWD=data.rates.TWD,USD=data.rates.USD,GBP=data.rates.GBP,PLN=data.rates.PLN,CZK=data.rates.CZK;
+    S.latestRates={EUR_TWD:TWD,EUR_USD:USD,USD_TWD:TWD/USD,EUR_GBP:GBP,EUR_PLN:PLN,EUR_CZK:CZK};
     S.ratesFetchedAt=now;scheduleSave();renderRateNote();
   }catch(e){
     console.log('Rate fetch failed, using cached rates');
@@ -557,7 +559,7 @@ function resetSwipe(){if(swipedInner){swipedInner.style.transform='translateX(0)
 function renderRateNote(){
   const el=document.getElementById('rate-note');if(!el)return;
   const r=S.latestRates,t=S.ratesFetchedAt?new Date(S.ratesFetchedAt).toLocaleDateString('zh-TW'):'預設值';
-  el.textContent=`即時匯率：1 EUR = NT$${r.EUR_TWD.toFixed(2)} / $${r.EUR_USD.toFixed(3)} USD / £${(r.EUR_GBP||0.856).toFixed(3)} GBP（${t}）`;
+  el.textContent=`即時匯率：1 EUR = NT$${r.EUR_TWD.toFixed(2)} / $${r.EUR_USD.toFixed(3)} / £${(r.EUR_GBP||0.856).toFixed(3)} / zł${(r.EUR_PLN||4.28).toFixed(2)} / Kč${(r.EUR_CZK||25.2).toFixed(1)}（${t}）`;
 }
 
 function renderSummary(){
@@ -682,7 +684,7 @@ function renderExpList(k){
     catSel.innerHTML='<option value="">類別</option>'+S.cats.map(c=>`<option value="${c.id}"${exp.catId===c.id?' selected':''}>${c.name}</option>`).join('');
     catSel.onchange=()=>{S.days[k].expenses[ei].catId=catSel.value||null;sr();};
     const curSel=document.createElement('select');curSel.className='meta-sel cur-sel';
-    curSel.innerHTML=['EUR','USD','GBP','NTD'].map(c=>`<option${exp.cur===c?' selected':''}>${c}</option>`).join('');
+    curSel.innerHTML=['EUR','USD','GBP','PLN','CZK','NTD'].map(c=>`<option${exp.cur===c?' selected':''}>${c}</option>`).join('');
     curSel.onchange=()=>{S.days[k].expenses[ei].cur=curSel.value;sr();};
     const amtInp=document.createElement('input');amtInp.className='meta-inp amt-inp'+(errs.amt?' invalid':'');
     amtInp.type='text';amtInp.inputMode='decimal';amtInp.placeholder='金額';
@@ -693,7 +695,7 @@ function renderExpList(k){
     const hintEl=document.createElement('div');hintEl.className='eur-chip';
     hintEl.textContent=(exp.cur!=='EUR'&&(parseFloat(exp.amt)||0)>0)?'≈'+fca(ea):'';
     metaRow.appendChild(catSel);metaRow.appendChild(curSel);metaRow.appendChild(amtInp);metaRow.appendChild(hintEl);
-    if(exp.cur==='EUR'||exp.cur==='USD'||exp.cur==='GBP'){
+    if(['EUR','USD','GBP','PLN','CZK'].includes(exp.cur)){
       const twdInp=document.createElement('input');twdInp.className='meta-inp twd-inp';
       twdInp.type='text';twdInp.inputMode='decimal';twdInp.placeholder='NT$（選填）';
       twdInp.value=exp.twd!=null&&exp.twd!==''?exp.twd:'';
@@ -801,7 +803,7 @@ function importCSV(rows,colMap,replace){
     if(!desc)return;
     const catName=(r[colMap.cat]||'').trim();let catId=null;
     if(catName){let cat=S.cats.find(c=>c.name===catName);if(!cat){const p=PAL[S.cats.length%PAL.length];cat={id:uid(),name:catName,c:p.c,bg:p.bg};S.cats.push(cat);}catId=cat.id;}
-    const cur=(['EUR','USD','GBP','NTD'].includes((r[colMap.cur]||'').trim()))?(r[colMap.cur]||'EUR').trim():'EUR';const amt=r[colMap.amt]||'';const twd=r[colMap.twd]||null;
+    const cur=(['EUR','USD','GBP','PLN','CZK','NTD'].includes((r[colMap.cur]||'').trim()))?(r[colMap.cur]||'EUR').trim():'EUR';const amt=r[colMap.amt]||'';const twd=r[colMap.twd]||null;
     if(!replace){const exists=S.days[k].expenses.some(e=>e.desc===desc&&String(e.amt)===String(amt)&&e.cur===cur);if(exists)return;}
     S.days[k].expenses.push({id:uid(),desc,cur,amt,twd:twd||null,catId});
   });
